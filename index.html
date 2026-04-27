@@ -1,353 +1,169 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icons/icon-192.png">
 
 <meta name="application-name" content="Ledger">
 <meta name="apple-mobile-web-app-title" content="Ledger">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-
 <meta name="msapplication-TileColor" content="#0f172a">
 <meta name="msapplication-config" content="/browserconfig.xml">
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Daily Journal</title>
-  <meta name="theme-color" content="#0f172a" />
-  <meta name="referrer" content="no-referrer" />
-  <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=()" />
-  <link rel="preconnect" href="https://esm.sh" />
-  <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin />
-  <script src="https://esm.sh/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="manifest" href="./manifest.webmanifest" />
-  <style>
-    html, body { height: 100%; }
-    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif; }
-    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-    .focus\:not-sr-only:focus { position: static; width: auto; height: auto; margin: 0; overflow: visible; clip: auto; white-space: normal; }
-  </style>
+
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ledger</title>
+<meta name="theme-color" content="#0f172a" />
+
+<script src="https://esm.sh/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+
+<link rel="manifest" href="./manifest.webmanifest" />
+
+<style>
+body { font-family: system-ui; }
+* { transition: all 0.15s ease; }
+</style>
 </head>
-<body class="bg-slate-50 text-slate-900 antialiased">
-  <a href="#main" class="sr-only focus:not-sr-only absolute top-2 left-2 bg-white px-3 py-2 rounded-2xl shadow">Skip to content</a>
-  <div id="root" class="min-h-full"></div>
 
-  <script type="importmap">
-  {
-    "imports": {
-      "react": "https://esm.sh/react@18.2.0",
-      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-      "htm": "https://esm.sh/htm@3.1.1"
-    }
+<body class="bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100">
+
+<div id="root"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "htm": "https://esm.sh/htm@3.1.1"
   }
-  </script>
+}
+</script>
 
-  <script type="module">
-    import React, { useState, useEffect, useRef, createContext, useContext, useCallback } from "react";
-    import { createRoot } from "react-dom/client";
-    import htm from "htm";
-    const html = htm.bind(React.createElement);
+<script type="module">
+import React, { useState, useEffect, useRef } from "react";
+import { createRoot } from "react-dom/client";
+import htm from "htm";
+const html = htm.bind(React.createElement);
 
-    const ModalContext = createContext(null);
-    function ModalProvider({ children }) {
-      const [modal, setModal] = useState(null);
-      const triggerRef = useRef(null);
-      const open = useCallback((opts, trigger) => { triggerRef.current = trigger || null; setModal(opts); }, []);
-      const close = useCallback(() => { setModal(null); setTimeout(() => triggerRef.current?.focus(), 0); }, []);
-      useEffect(() => {
-        if (!modal) return;
-        const onKey = (e) => { if (e.key === "Escape") close(); };
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-      }, [modal, close]);
-      return html`
-        <${ModalContext.Provider} value=${{ open, close }}>
-          ${children}
-          ${modal && html`
-            <div class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-              <div class="absolute inset-0 bg-black/40" onClick=${close}></div>
-              <div class="relative w-full max-w-md rounded-2xl bg-white shadow-xl p-6">
-                <h2 id="modal-title" class="text-lg font-semibold mb-2">${modal.title || "Notice"}</h2>
-                <div class="text-sm text-slate-600 mb-4">${modal.message}</div>
-                <div class="flex justify-end gap-2">
-                  ${modal.cancelText && html`<button onClick=${close} class="px-4 py-2 rounded-2xl bg-slate-100 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400">${modal.cancelText}</button>`}
-                  <button onClick=${() => { modal.onConfirm?.(); close(); }} class="px-4 py-2 rounded-2xl bg-slate-900 text-white hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400">${modal.confirmText || "OK"}</button>
-                </div>
-              </div>
-            </div>
-          `}
-        </${ModalContext.Provider}>
-      `;
+/* ------------------ SOUND + HAPTICS ------------------ */
+const playSound = (type="tap") => {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.connect(g); g.connect(ctx.destination);
+  o.frequency.value = type==="success"?880:type==="error"?220:440;
+  g.gain.value = 0.05;
+  o.start(); o.stop(ctx.currentTime+0.08);
+};
+const vibrate = (p=10)=> navigator.vibrate?.(p);
+
+/* ------------------ VOICE ------------------ */
+let recognition=null;
+const startVoice = (updateText, textRef) => {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return alert("Voice not supported");
+
+  recognition = new SR();
+  recognition.continuous = true;
+  recognition.onresult = e=>{
+    let t="";
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      t+=e.results[i][0].transcript;
     }
-    const useModal = () => useContext(ModalContext);
+    updateText(textRef.current+" "+t);
+  };
+  recognition.start();
+};
 
-    class ErrorBoundary extends React.Component {
-      constructor(p){ super(p); this.state={hasError:false}; }
-      static getDerivedStateFromError(){ return {hasError:true}; }
-      componentDidCatch(err, info){ console.error("ErrorBoundary", err, info); }
-      render(){ return this.state.hasError? html`<div class="p-6 text-center rounded-2xl">Something went wrong. Reload to continue.</div>` : this.props.children; }
+/* ------------------ UTIL ------------------ */
+const todayKey = ()=>"journal:"+new Date().toISOString().slice(0,10);
+
+const download=(name,content,type)=>{
+  const blob=new Blob([content],{type});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=name.replace(/[^\w\-\.]/g,"-");
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+/* ------------------ APP ------------------ */
+function App(){
+  const [entry,setEntry]=useState({text:""});
+  const [weather,setWeather]=useState("");
+  const textRef=useRef("");
+
+  useEffect(()=>{
+    playSound(); vibrate(10);
+
+    fetch("https://wttr.in/?format=j1")
+    .then(r=>r.json())
+    .then(d=>{
+      const c=d.current_condition[0];
+      setWeather(c.temp_F+"°F "+c.weatherDesc[0].value);
+    }).catch(()=>{});
+  },[]);
+
+  const updateText=(v)=>{
+    textRef.current=v;
+    setEntry({text:v});
+    localStorage.setItem(todayKey(),JSON.stringify({text:v}));
+  };
+
+  const exportJSON=()=>{
+    playSound("success"); vibrate(20);
+    download("entry.json",JSON.stringify(entry,null,2),"application/json");
+  };
+
+  const share=()=>{
+    playSound("success");
+    if(navigator.share){
+      navigator.share({text:entry.text});
     }
+  };
 
-    function safeParse(raw, fallback) { try { return JSON.parse(raw); } catch { return fallback; } }
+  return html`
+  <div class="max-w-2xl mx-auto p-6">
 
-    function useLocalStorage(key, initialValue) {
-      const [value, setValue] = useState(() => {
-        try { const item = localStorage.getItem(key); return item ? safeParse(item, initialValue) : initialValue; } catch { return initialValue; }
-      });
-      useEffect(() => { 
-        try { localStorage.setItem(key, JSON.stringify(value)); } 
-        catch (e) { console.error("localStorage write failed", e); }
-      }, [key, value]);
-      return [value, setValue];
-    }
+    <div class="flex justify-between items-center mb-4">
+      <h1 class="text-2xl font-bold">Ledger</h1>
+      <div class="text-xs opacity-60">${weather||"..."}</div>
+    </div>
 
-    function todayKey() {
-      const d = new Date();
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth()+1).padStart(2,'0');
-      const dd = String(d.getDate()).padStart(2,'0');
-      return `journal:${yyyy}-${mm}-${dd}`;
-    }
+    <textarea
+      class="w-full min-h-[300px] p-4 rounded-2xl bg-white/5 backdrop-blur border border-white/10 focus:ring-2 focus:ring-indigo-500"
+      placeholder="Write..."
+      onInput=${e=>updateText(e.target.value)}
+    ></textarea>
 
-    function formatDate() {
-      return new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    }
+    <div class="flex gap-2 mt-4 flex-wrap">
 
-    function sanitizeFilename(name) { return name.replace(/[^a-z0-9-_]/gi, "-"); }
+      <button onClick=${exportJSON}
+        class="px-4 py-2 bg-indigo-600 rounded-2xl flex items-center gap-2 active:scale-95">
+        ⬇ Export
+      </button>
 
-    function TodayView() {
-      const modal = useModal();
-      const [key, setKey] = useState(todayKey());
-      const [entry, setEntry] = useLocalStorage(key, { v:1, text: "", updatedAt: null });
-      const [status, setStatus] = useState("Saved");
-      const [webhook, setWebhook] = useLocalStorage("settings-webhook", "");
-      const [online, setOnline] = useState(navigator.onLine);
-      const [installEvent, setInstallEvent] = useState(null);
-      const [updateAvailable, setUpdateAvailable] = useState(false);
-      const timer = useRef(null);
-      const textRef = useRef(entry.text || "");
+      <button onClick=${share}
+        class="px-4 py-2 bg-slate-700 rounded-2xl active:scale-95">
+        Share
+      </button>
 
-      const text = entry.text || "";
-      const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-      const readingMin = Math.max(1, Math.round(words / 200));
+      <button onClick=${()=>startVoice(updateText,textRef)}
+        class="px-4 py-2 bg-indigo-500 rounded-2xl active:scale-95">
+        🎤 Speak
+      </button>
 
-      const flush = useCallback(() => {
-        try { localStorage.setItem(key, JSON.stringify({ v:1, text: textRef.current, updatedAt: new Date().toISOString() })); setStatus("Saved"); }
-        catch (e) { modal.open({ title: "Save failed", message: String(e) }); }
-      }, [key, modal]);
+    </div>
 
-      const updateText = (v) => {
-        textRef.current = v;
-        setEntry(prev => ({ ...prev, text: v, updatedAt: new Date().toISOString() }));
-        setStatus("Saving...");
-        clearTimeout(timer.current);
-        timer.current = setTimeout(flush, 700);
-      };
+  </div>
+  `;
+}
 
-      useEffect(() => { textRef.current = entry.text || ""; }, [entry.text]);
+createRoot(document.getElementById("root")).render(html`<${App}/>`);
+</script>
 
-      useEffect(() => {
-        const onStorage = (e) => { if (e.key === key && e.newValue) { const next = safeParse(e.newValue, null); if (next) setEntry(next); } };
-        window.addEventListener("storage", onStorage);
-        return () => window.removeEventListener("storage", onStorage);
-      }, [key]);
-
-      useEffect(() => {
-        const iv = setInterval(() => {
-          const nk = todayKey();
-          if (nk !== key) { flush(); setKey(nk); }
-        }, 60000);
-        const onVis = () => { if (document.visibilityState === "visible") { const nk = todayKey(); if (nk !== key) { flush(); setKey(nk); } } else { flush(); } };
-        document.addEventListener("visibilitychange", onVis);
-        return () => { clearInterval(iv); document.removeEventListener("visibilitychange", onVis); };
-      }, [key, flush]);
-
-      useEffect(() => {
-        const onOnline = () => setOnline(true);
-        const onOffline = () => setOnline(false);
-        window.addEventListener("online", onOnline);
-        window.addEventListener("offline", onOffline);
-        return () => { window.removeEventListener("online", onOnline); window.removeEventListener("offline", onOffline); };
-      }, []);
-
-      useEffect(() => {
-        const onBeforeInstall = (e) => { e.preventDefault(); setInstallEvent(e); };
-        window.addEventListener("beforeinstallprompt", onBeforeInstall);
-        return () => window.removeEventListener("beforeinstallprompt", onBeforeInstall);
-      }, []);
-
-      useEffect(() => {
-        if (!("serviceWorker" in navigator)) return;
-        navigator.serviceWorker.addEventListener("controllerchange", () => window.location.reload());
-        navigator.serviceWorker.getRegistration().then(reg => {
-          if (!reg) return;
-          reg.addEventListener("updatefound", () => {
-            const nw = reg.installing;
-            if (!nw) return;
-            nw.addEventListener("statechange", () => { if (nw.state === "installed" && navigator.serviceWorker.controller) setUpdateAvailable(true); });
-          });
-        });
-      }, []);
-
-      useEffect(() => {
-        const onKey = (e) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") { e.preventDefault(); exportJSON(); } };
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-      }, [text]);
-
-      useEffect(() => {
-        if (navigator.storage && navigator.storage.estimate) {
-          navigator.storage.estimate().then(({usage, quota}) => { if (quota && usage / quota > 0.8) modal.open({ title: "Storage nearly full", message: "Consider exporting and pruning old entries." }); });
-        }
-        if (navigator.storage && navigator.storage.persist) { navigator.storage.persist(); }
-      }, [modal]);
-
-      const download = (filename, content, mime) => {
-        const blob = new Blob([content], { type: mime });
-        const url = URL.createObjectURL(blob);
-        const a = Object.assign(document.createElement("a"), { href: url, download: sanitizeFilename(filename) });
-        a.click();
-        URL.revokeObjectURL(url);
-      };
-
-      const exportJSON = () => {
-        const payload = { date: key.replace("journal:", ""), v:1, text, updatedAt: entry.updatedAt, exportedAt: new Date().toISOString() };
-        download(`${payload.date}.json`, JSON.stringify(payload, null, 2), "application/json");
-      };
-      const exportTXT = () => { download(`${key.replace("journal:", "")}.txt`, `Date: ${key.replace("journal:", "")}
-
-${text}
-`, "text/plain"); };
-      const exportMD = () => { download(`${key.replace("journal:", "")}.md`, `---
-date: ${key.replace("journal:", "")}
-updatedAt: ${entry.updatedAt || ""}
----
-
-${text}
-`, "text/markdown"); };
-      const copyToClipboard = async () => { try { await navigator.clipboard.writeText(text); modal.open({ title: "Copied", message: "Entry copied to clipboard." }); } catch (e) { modal.open({ title: "Copy failed", message: String(e) }); } };
-      const shareEntry = async () => { const data = { title: "My Journal Entry", text: text.slice(0, 1000) }; if (navigator.share) { try { await navigator.share(data); } catch {} } else { copyToClipboard(); } };
-
-      const webhookValid = /^https:\/\/.+/i.test(webhook.trim());
-      const postWebhook = async () => {
-        if (!webhookValid) { modal.open({ title: "Invalid webhook", message: "Use an https URL." }); return; }
-        try {
-          const res = await fetch(webhook.trim(), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date: key.replace("journal:", ""), v:1, text, updatedAt: entry.updatedAt }) });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          modal.open({ title: "Posted", message: "Entry sent to webhook." });
-        } catch (e) { modal.open({ title: "Post failed", message: String(e) }); }
-      };
-
-      const clearToday = () => {
-        modal.open({ title: "Clear today", message: "Delete today's text? This cannot be undone.", cancelText: "Cancel", confirmText: "Delete", onConfirm: () => setEntry({ v:1, text: "", updatedAt: new Date().toISOString() }) }, document.activeElement);
-      };
-
-      const exportAll = () => {
-        const items = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith("journal:")) { const v = safeParse(localStorage.getItem(k), null); if (v) items.push({ key: k, ...v }); }
-        }
-        items.sort((a,b) => a.key.localeCompare(b.key));
-        download(`journal-export-all-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(items, null, 2), "application/json");
-      };
-
-      const prune90 = () => {
-        const cutoff = Date.now() - 90*24*60*60*1000;
-        let count = 0;
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith("journal:")) {
-            const dateStr = k.replace("journal:", "");
-            const d = new Date(dateStr);
-            if (!isNaN(d) && d.getTime() < cutoff) { localStorage.removeItem(k); count++; }
-          }
-        }
-        modal.open({ title: "Pruned", message: `Removed ${count} entries older than 90 days.` });
-      };
-
-      const lastSaved = entry.updatedAt ? new Date(entry.updatedAt).toLocaleTimeString() : "—";
-
-      return html`
-        <div class="mx-auto max-w-2xl p-4 sm:p-6">
-          <header class="mb-4 flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-              <img src="https://placehold.co/80x80" width="48" height="48" onError=${e => e.currentTarget.src = 'https://placehold.co/80x80/e2e8f0/64748b?text=Icon'} alt="App icon" class="w-12 h-12 rounded-2xl object-cover" />
-              <div>
-                <h1 class="text-2xl font-bold tracking-tight rounded-lg">Tell me about your day</h1>
-                <p class="text-sm text-slate-500 rounded-lg">${formatDate()}</p>
-              </div>
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-xs px-3 py-1 rounded-2xl ${online ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${online ? 'Online' : 'Offline'}</span>
-              <span aria-live="polite" class="text-xs px-3 py-1 rounded-2xl bg-slate-100 text-slate-600 min-w-[80px] text-center">${status}</span>
-            </div>
-          </header>
-
-          ${updateAvailable && html`
-            <div class="mb-4 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-sm flex items-center justify-between">
-              <span>Update available</span>
-              <button onClick=${() => window.location.reload()} class="px-3 py-1.5 rounded-2xl bg-amber-600 text-white">Reload to update</button>
-            </div>
-          `}
-
-          <main id="main" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-            <textarea aria-label="Today's journal entry" class="w-full min-h-[320px] resize-y rounded-2xl border border-slate-300 p-4 focus:outline-none focus:ring-2 focus:ring-slate-400" placeholder="Start typing..." spellcheck="true" autocapitalize="sentences" autocomplete="off" value=${text} onInput=${e => updateText(e.target.value)}></textarea>
-            <div class="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
-              <div>Words: <strong>${words}</strong> • ${readingMin} min read • Chars: <strong>${text.length}</strong></div>
-              <div class="text-[11px] rounded-lg">Last saved: ${lastSaved}</div>
-            </div>
-            <div class="mt-4 grid grid-cols-2 sm:flex gap-2">
-              <button aria-label="Export JSON" onClick=${exportJSON} class="px-4 py-2 rounded-2xl bg-slate-900 text-white hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400">Export JSON</button>
-              <button aria-label="Export Markdown" onClick=${exportMD} class="px-4 py-2 rounded-2xl bg-slate-100 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400">Export MD</button>
-              <button aria-label="Export TXT" onClick=${exportTXT} class="px-4 py-2 rounded-2xl bg-slate-100 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400">Export TXT</button>
-              <button aria-label="Copy to clipboard" onClick=${copyToClipboard} class="px-4 py-2 rounded-2xl bg-slate-100 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400">Copy</button>
-              <button aria-label="Share" onClick=${shareEntry} class="px-4 py-2 rounded-2xl bg-slate-100 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400">Share</button>
-              <button aria-label="Clear today" onClick=${clearToday} class="px-4 py-2 rounded-2xl bg-rose-100 hover:bg-rose-200 text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-300">Clear Today</button>
-              ${webhookValid && html`<button aria-label="POST to webhook" onClick=${postWebhook} class="px-4 py-2 rounded-2xl bg-emerald-600 text-white hover:bg-emerald-700 sm:ml-auto focus:outline-none focus:ring-2 focus:ring-emerald-400">POST to Webhook</button>`}
-            </div>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <button onClick=${exportAll} class="text-xs px-3 py-1.5 rounded-2xl bg-slate-100 hover:bg-slate-200">Export All</button>
-              <button onClick=${prune90} class="text-xs px-3 py-1.5 rounded-2xl bg-slate-100 hover:bg-slate-200">Prune 90 days</button>
-              ${installEvent && html`<button onClick=${() => installEvent.prompt()} class="text-xs px-3 py-1.5 rounded-2xl bg-indigo-600 text-white">Install app</button>`}
-            </div>
-          </main>
-
-          <section class="mt-6 bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-            <h2 class="font-semibold mb-2 rounded-lg">Settings</h2>
-            <label class="block text-sm text-slate-600 mb-1" for="webhook">Webhook URL (optional)</label>
-            <input id="webhook" type="url" value=${webhook} onInput=${e => setWebhook(e.target.value)} placeholder="https://your-endpoint.example/webhook" class="w-full p-2.5 border ${webhook && !webhookValid ? 'border-rose-400' : 'border-slate-300'} rounded-2xl focus:outline-none focus:ring-2 focus:ring-slate-400" />
-            <p class="mt-2 text-[11px] text-slate-500 rounded-lg">Stored in localStorage. POST sends { date, v, text, updatedAt } as JSON.</p>
-          </section>
-
-          <footer class="mt-6 text-[11px] text-slate-400 text-center">Service worker: v1</footer>
-        </div>
-      `;
-    }
-
-    function App() {
-      const [currentPage] = useState("today");
-      switch (currentPage) {
-        case "today":
-        default:
-          return html`<${TodayView} />`;
-      }
-    }
-
-    const root = createRoot(document.getElementById("root"));
-    root.render(html`
-      <${ErrorBoundary}>
-        <${ModalProvider}>
-          <${App} />
-        </${ModalProvider}>
-      </${ErrorBoundary}>
-    `);
-
-    const params = new URLSearchParams(location.search);
-    if (params.get("safe") !== "1" && "serviceWorker" in navigator) {
-      window.addEventListener("load", () => { navigator.serviceWorker.register("./sw.js").catch(console.error); });
-    }
-  </script>
 </body>
 </html>
