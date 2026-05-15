@@ -1,4 +1,4 @@
-const VERSION = "v3";
+const VERSION = "v4";
 const CACHE_NAME = `ledger-${VERSION}`;
 
 const APP_SHELL = [
@@ -35,7 +35,6 @@ self.addEventListener("activate", (event) => {
 /* ---------------- FETCH STRATEGY ---------------- */
 self.addEventListener("fetch", (event) => {
   const req = event.request;
-
   if (req.method !== "GET") return;
 
   const url = new URL(req.url);
@@ -54,15 +53,20 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  /* 🔹 2. Static assets → Stale While Revalidate */
-  if (
+  /* 🔹 2. Static assets & CDNs → Stale While Revalidate */
+  const isStaticAsset = 
     url.pathname.endsWith(".js") ||
     url.pathname.endsWith(".css") ||
     url.pathname.endsWith(".svg") ||
     url.pathname.endsWith(".png") ||
     url.pathname.endsWith(".jpg") ||
-    url.pathname.endsWith(".webp")
-  ) {
+    url.pathname.endsWith(".woff2") ||
+    url.pathname.endsWith(".woff") ||
+    url.hostname.includes("fonts.googleapis.com") ||
+    url.hostname.includes("fonts.gstatic.com") ||
+    url.hostname.includes("esm.sh");
+
+  if (isStaticAsset) {
     event.respondWith(
       caches.match(req).then(cached => {
         const fetchPromise = fetch(req)

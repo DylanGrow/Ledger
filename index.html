@@ -8,28 +8,129 @@
 <meta name="apple-mobile-web-app-title" content="Ledger">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="msapplication-TileColor" content="#0f172a">
+<meta name="msapplication-TileColor" content="#020617">
 <meta name="msapplication-config" content="/browserconfig.xml">
 
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Ledger</title>
-<meta name="theme-color" content="#0f172a" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+<title>Ledger — Daily Instrument</title>
+<meta name="theme-color" content="#020617" />
+<meta name="description" content="An offline-first daily logging instrument designed for speed, clarity, and intentional reflection." />
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 
 <script src="https://esm.sh/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 
 <link rel="manifest" href="./manifest.webmanifest" />
 
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Outfit', 'sans-serif'],
+          serif: ['Instrument Serif', 'serif'],
+        },
+        colors: {
+          slate: {
+            950: '#020617',
+          }
+        },
+        animation: {
+          'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+          'float': 'float 6s ease-in-out infinite',
+        },
+        keyframes: {
+          float: {
+            '0%, 100%': { transform: 'translateY(0)' },
+            '50%': { transform: 'translateY(-10px)' },
+          }
+        }
+      }
+    }
+  }
+</script>
+
 <style>
-body { font-family: system-ui; }
-* { transition: all 0.15s ease; }
+  :root {
+    --glass: rgba(255, 255, 255, 0.03);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --accent: #6366f1;
+  }
+
+  body { 
+    background-color: #020617;
+    color: #f1f5f9;
+    overscroll-behavior: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .glass {
+    background: var(--glass);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+  }
+
+  .glass-card {
+    background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
+    backdrop-filter: blur(40px);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  }
+
+  textarea::placeholder {
+    font-style: italic;
+    opacity: 0.3;
+  }
+
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    opacity: 0.04;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+
+  ::selection {
+    background: var(--accent);
+    color: white;
+  }
+
+  .writing-surface {
+    transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.3s ease;
+  }
+  
+  .writing-surface:focus-within {
+    border-color: rgba(99, 102, 241, 0.4);
+    transform: scale(1.005);
+  }
+
+  .btn-hover {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .btn-hover:active { transform: scale(0.95); filter: brightness(1.2); }
 </style>
 </head>
 
-<body class="bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100">
+<body class="min-h-screen flex flex-col font-sans selection:bg-indigo-500/30">
 
-<div id="root"></div>
+<div class="grain"></div>
+
+<!-- Background Glow -->
+<div class="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-900/20 rounded-full blur-[120px] pointer-events-none"></div>
+<div class="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-slate-900/40 rounded-full blur-[120px] pointer-events-none"></div>
+
+<div id="root" class="flex-grow flex flex-col"></div>
 
 <script type="importmap">
 {
@@ -42,123 +143,273 @@ body { font-family: system-ui; }
 </script>
 
 <script type="module">
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 import htm from "htm";
 const html = htm.bind(React.createElement);
 
-/* ------------------ SOUND + HAPTICS ------------------ */
-const playSound = (type="tap") => {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const o = ctx.createOscillator();
-  const g = ctx.createGain();
-  o.connect(g); g.connect(ctx.destination);
-  o.frequency.value = type==="success"?880:type==="error"?220:440;
-  g.gain.value = 0.05;
-  o.start(); o.stop(ctx.currentTime+0.08);
+/* ------------------ CONFIG ------------------ */
+const PROMPTS = [
+  "What is one thing you want to remember about today?",
+  "What was a moment of unexpected beauty?",
+  "What challenge did you navigate today?",
+  "What are you looking forward to tomorrow?",
+  "Write about a conversation that moved you.",
+  "What did you learn about yourself today?",
+  "Describe today in exactly three sentences."
+];
+
+/* ------------------ FEEDBACK ------------------ */
+const feedback = {
+  tap: () => {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.setValueAtTime(440, ctx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(220, ctx.currentTime + 0.1);
+    g.gain.setValueAtTime(0.02, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.1);
+    o.start(); o.stop(ctx.currentTime + 0.1);
+    navigator.vibrate?.(5);
+  },
+  success: () => {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.setValueAtTime(523.25, ctx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(1046.50, ctx.currentTime + 0.2);
+    g.gain.setValueAtTime(0.02, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.2);
+    o.start(); o.stop(ctx.currentTime + 0.2);
+    navigator.vibrate?.([10, 30, 10]);
+  },
+  listening: () => navigator.vibrate?.([50, 20, 50])
 };
-const vibrate = (p=10)=> navigator.vibrate?.(p);
 
-/* ------------------ VOICE ------------------ */
-let recognition=null;
-const startVoice = (updateText, textRef) => {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) return alert("Voice not supported");
+/* ------------------ UTILS ------------------ */
+const todayKey = () => `ledger:${new Date().toISOString().slice(0, 10)}`;
+const getTodayString = () => new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
-  recognition = new SR();
-  recognition.continuous = true;
-  recognition.onresult = e=>{
-    let t="";
-    for(let i=e.resultIndex;i<e.results.length;i++){
-      t+=e.results[i][0].transcript;
-    }
-    updateText(textRef.current+" "+t);
-  };
-  recognition.start();
-};
-
-/* ------------------ UTIL ------------------ */
-const todayKey = ()=>"journal:"+new Date().toISOString().slice(0,10);
-
-const download=(name,content,type)=>{
-  const blob=new Blob([content],{type});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url;
-  a.download=name.replace(/[^\w\-\.]/g,"-");
+const downloadFile = (filename, content, mime) => {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
 };
 
-/* ------------------ APP ------------------ */
-function App(){
-  const [entry,setEntry]=useState({text:""});
-  const [weather,setWeather]=useState("");
-  const textRef=useRef("");
+/* ------------------ COMPONENTS ------------------ */
 
-  useEffect(()=>{
-    playSound(); vibrate(10);
+function App() {
+  const [text, setText] = useState("");
+  const [weather, setWeather] = useState("");
+  const [isListening, setIsListening] = useState(false);
+  const [savedStatus, setSavedStatus] = useState("Idle");
+  const textareaRef = useRef(null);
+  const recognitionRef = useRef(null);
 
-    fetch("https://wttr.in/?format=j1")
-    .then(r=>r.json())
-    .then(d=>{
-      const c=d.current_condition[0];
-      setWeather(c.temp_F+"°F "+c.weatherDesc[0].value);
-    }).catch(()=>{});
-  },[]);
+  // Initialize
+  useEffect(() => {
+    const saved = localStorage.getItem(todayKey());
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setText(parsed.text || "");
+      } catch(e) { setText(saved); }
+    }
 
-  const updateText=(v)=>{
-    textRef.current=v;
-    setEntry({text:v});
-    localStorage.setItem(todayKey(),JSON.stringify({text:v}));
+    // Fetch Weather (Plain text format)
+    fetch("https://wttr.in/?format=1")
+      .then(r => r.text())
+      .then(t => {
+        if (t.includes("<html")) throw new Error("HTML returned");
+        setWeather(t.trim());
+      })
+      .catch(() => setWeather(""));
+
+    // Focus on load
+    textareaRef.current?.focus();
+  }, []);
+
+  // Auto-save
+  useEffect(() => {
+    if (text) {
+      const timeout = setTimeout(() => {
+        localStorage.setItem(todayKey(), JSON.stringify({ 
+          text, 
+          updatedAt: new Date().toISOString() 
+        }));
+        setSavedStatus("Saved");
+        setTimeout(() => setSavedStatus("Idle"), 2000);
+      }, 1000);
+      setSavedStatus("Typing...");
+      return () => clearTimeout(timeout);
+    }
+  }, [text]);
+
+  const stats = useMemo(() => {
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    const chars = text.length;
+    return { words, chars };
+  }, [text]);
+
+  const dailyPrompt = useMemo(() => {
+    const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
+    return PROMPTS[dayOfYear % PROMPTS.length];
+  }, []);
+
+  const handleVoice = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return alert("Speech recognition not supported in this browser.");
+
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    feedback.listening();
+    const recognition = new SR();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    
+    recognition.onstart = () => setIsListening(true);
+    recognition.onresult = (e) => {
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) {
+          setText(prev => (prev + " " + e.results[i][0].transcript).trim());
+        } else {
+          interim += e.results[i][0].transcript;
+        }
+      }
+    };
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = () => setIsListening(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
   };
 
-  const exportJSON=()=>{
-    playSound("success"); vibrate(20);
-    download("entry.json",JSON.stringify(entry,null,2),"application/json");
+  const handleExport = () => {
+    feedback.success();
+    const date = new Date().toISOString().slice(0, 10);
+    const content = `LEDGER — ${getTodayString()}\n\n${text}\n\nExported on ${new Date().toLocaleString()}`;
+    downloadFile(`ledger-${date}.txt`, content, "text/plain");
   };
 
-  const share=()=>{
-    playSound("success");
-    if(navigator.share){
-      navigator.share({text:entry.text});
+  const handleShare = () => {
+    feedback.tap();
+    if (navigator.share) {
+      navigator.share({
+        title: `Ledger Entry — ${getTodayString()}`,
+        text: text,
+      }).catch(() => {});
+    } else {
+      alert("Sharing not supported on this device.");
+    }
+  };
+
+  const clearEntry = () => {
+    if (confirm("Clear today's entry? This cannot be undone.")) {
+      setText("");
+      localStorage.removeItem(todayKey());
+      feedback.tap();
     }
   };
 
   return html`
-  <div class="max-w-2xl mx-auto p-6">
+    <div class="max-w-4xl mx-auto w-full p-6 md:p-12 flex-grow flex flex-col gap-8">
+      
+      <!-- Header -->
+      <header class="flex justify-between items-end">
+        <div class="space-y-1">
+          <h1 class="text-4xl font-serif italic tracking-tight text-white/90">Ledger</h1>
+          <p class="text-sm font-light text-slate-400 tracking-widest uppercase">${getTodayString()}</p>
+        </div>
+        <div class="text-right space-y-1 hidden md:block">
+          <div class="text-xs font-semibold text-indigo-400/80 tracking-tighter uppercase tabular-nums">
+            ${weather || "Syncing..."}
+          </div>
+          <div class="text-[10px] text-slate-600 uppercase tracking-widest">
+            ${savedStatus}
+          </div>
+        </div>
+      </header>
 
-    <div class="flex justify-between items-center mb-4">
-      <h1 class="text-2xl font-bold">Ledger</h1>
-      <div class="text-xs opacity-60">${weather||"..."}</div>
+      <!-- Writing Surface -->
+      <main class="flex-grow flex flex-col relative group">
+        <div class="absolute -inset-1 bg-gradient-to-r from-indigo-500/10 to-slate-500/10 rounded-[2rem] blur opacity-25 group-focus-within:opacity-50 transition duration-1000 group-focus-within:duration-200"></div>
+        
+        <div class="relative flex-grow flex flex-col glass-card rounded-[1.5rem] p-1 writing-surface">
+          <div class="flex-grow relative">
+            <textarea
+              ref=${textareaRef}
+              class="w-full h-full p-8 md:p-12 bg-transparent outline-none resize-none font-serif text-xl md:text-2xl leading-relaxed text-slate-200"
+              placeholder="${dailyPrompt}"
+              value=${text}
+              onInput=${e => setText(e.target.value)}
+            ></textarea>
+
+            <!-- Stats Overlay -->
+            <div class="absolute bottom-6 right-8 flex gap-6 text-[10px] font-semibold tracking-widest text-slate-500 uppercase pointer-events-none">
+              <span>${stats.words} Words</span>
+              <span>${stats.chars} Characters</span>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- Controls -->
+      <footer class="flex flex-wrap items-center justify-between gap-6 pb-4">
+        
+        <div class="flex gap-3">
+          <button 
+            onClick=${handleExport}
+            title="Export as Text"
+            class="h-12 px-6 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full flex items-center gap-2 text-sm font-medium tracking-wide btn-hover text-indigo-300"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Export TXT
+          </button>
+          
+          <button 
+            onClick=${handleShare}
+            title="Share Entry"
+            class="h-12 w-12 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full flex items-center justify-center btn-hover text-slate-400"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 100-2.684 3 3 0 000 2.684zm0 12a3 3 0 100-2.684 3 3 0 000 2.684z"/></svg>
+          </button>
+        </div>
+
+        <div class="flex gap-3 items-center">
+           <button 
+            onClick=${clearEntry}
+            title="Clear Today"
+            class="h-12 w-12 bg-red-500/5 hover:bg-red-500/10 border border-red-500/10 rounded-full flex items-center justify-center btn-hover text-red-400/60"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+
+          <button 
+            onClick=${handleVoice}
+            class="h-14 px-8 ${isListening ? 'bg-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4)]' : 'bg-indigo-600 shadow-[0_0_20px_rgba(99,102,241,0.3)]'} rounded-full flex items-center gap-3 text-sm font-semibold tracking-widest uppercase transition-all duration-300 active:scale-95"
+          >
+            <span class="relative flex h-3 w-3 ${isListening ? 'block' : 'hidden'}">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
+            </span>
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+            ${isListening ? 'Listening...' : 'Dictate'}
+          </button>
+        </div>
+
+      </footer>
     </div>
-
-    <textarea
-      class="w-full min-h-[300px] p-4 rounded-2xl bg-white/5 backdrop-blur border border-white/10 focus:ring-2 focus:ring-indigo-500"
-      placeholder="Write..."
-      onInput=${e=>updateText(e.target.value)}
-    ></textarea>
-
-    <div class="flex gap-2 mt-4 flex-wrap">
-
-      <button onClick=${exportJSON}
-        class="px-4 py-2 bg-indigo-600 rounded-2xl flex items-center gap-2 active:scale-95">
-        ⬇ Export
-      </button>
-
-      <button onClick=${share}
-        class="px-4 py-2 bg-slate-700 rounded-2xl active:scale-95">
-        Share
-      </button>
-
-      <button onClick=${()=>startVoice(updateText,textRef)}
-        class="px-4 py-2 bg-indigo-500 rounded-2xl active:scale-95">
-        🎤 Speak
-      </button>
-
-    </div>
-
-  </div>
   `;
 }
 
